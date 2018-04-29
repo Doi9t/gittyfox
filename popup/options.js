@@ -291,6 +291,4 @@ function reportExecuteScriptError(error) {
     console.error(`Failed to execute content script: ${error.message}`);
 }
 
-browser.tabs.executeScript({file: "/content_scripts/gittyfox.js"})
-    .then(listenForClicks)
-    .catch(reportExecuteScriptError);
+browser.tabs.executeScript({code: ""}).then(listenForClicks).catch(reportExecuteScriptError);
