@@ -1,0 +1,36 @@
+{
+  "description": "Save your bookmarks on Github",
+  "manifest_version": 2,
+  "name": "Gittyfox",
+  "version": "1.0",
+  "homepage_url": "https://watier.ca",
+  "icons": {
+    "48": "icons/main.png"
+  },
+  "applications": {
+    "gecko": {
+      "id": "gittyfox@watier.ca"
+    }
+  },
+  "permissions": [
+    "bookmarks",
+    "activeTab",
+    "webNavigation",
+    "webRequest",
+    "storage",
+    "*://api.github.com/*",
+    "*://github.com/*"
+  ],
+  "browser_action": {
+    "default_icon": "icons/main.png",
+    "theme_icons": [
+      {
+        "light": "icons/main.png",
+        "dark": "icons/main_dark.png",
+        "size": 32
+      }
+    ],
+    "default_title": "Beastify",
+    "default_popup": "popup/options.html"
+  }
+}
