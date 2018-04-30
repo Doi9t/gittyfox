@@ -220,7 +220,13 @@ function updateReference(token, username, repoName, treeSha, commitSha, successC
     });
 }
 
-function listenForClicks() {
+function showSyncSpinner(show) {
+    $("#imgLoading").toggle(show);
+}
+
+function setActionTriggers() {
+    disableUiAction(false);
+
     $("#btnGithubSave").click(function () {
         browser.storage.local.set({
             github: {
@@ -239,6 +245,7 @@ function listenForClicks() {
             let repoName = "bookmarks";
 
             if (token && key) {
+                showSyncSpinner(true);
                 browser.bookmarks.getTree(function (bookmarkTreeNodes) {
                     let bookmarks = [];
                     fillBookmarkList(bookmarkTreeNodes[0], bookmarks);
@@ -271,6 +278,7 @@ function listenForClicks() {
 
                                     updateReference(token, username, repoName, treeSha, commitSha, function (referenceData) {
                                         console.log(`The reference sha "${referenceData["object"].sha}"`);
+                                        showSyncSpinner(false);
                                     }, apiError);
                                 }, apiError);
                             }, apiError);
@@ -284,8 +292,40 @@ function listenForClicks() {
     });
 }
 
+function setComponentsDefaultValues() {
+    browser.storage.local.get("github", function (item) {
+        let github = item.github;
+
+        $('#inputGithubToken').val(github.token);
+        $('#inputAesKey').val(github.key);
+    });
+}
+
+function showMainView() {
+    setComponentsDefaultValues();
+    setActionTriggers();
+}
+
 function apiError(xhr, ajaxOptions, thrownError) {
     console.log(`There was an error while fetching the API -> (thrownError -> ${thrownError}, ajaxOptions -> ${JSON.stringify(ajaxOptions)}, xhr -> ${JSON.stringify(xhr)}`)
+    showSyncSpinner(false);
+}
+
+
+function disableUiAction(value) {
+    let $btnCallGithubSync = $("#btnCallGithubSync");
+    let $btnGithubSave = $("#btnGithubSave");
+
+    $btnCallGithubSync.prop("disabled", value);
+    $btnGithubSave.prop("disabled", value);
+
+    if (value) {
+        $btnCallGithubSync.addClass("disabled");
+        $btnGithubSave.addClass("disabled");
+    } else {
+        $btnCallGithubSync.removeClass("disabled");
+        $btnGithubSave.removeClass("disabled");
+    }
 }
 
 /**
@@ -305,6 +345,7 @@ function fillBookmarkList(bookmarkItem, bookmarks) {
 
 function reportExecuteScriptError(error) {
     console.error(`Failed to execute content script: ${error.message}`);
+    disableUiAction(true);
 }
 
-browser.tabs.executeScript({code: ""}).then(listenForClicks).catch(reportExecuteScriptError);
+browser.tabs.executeScript({code: ""}).then(showMainView).catch(reportExecuteScriptError);

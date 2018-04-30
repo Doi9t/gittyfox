@@ -22,10 +22,18 @@
 
 <body>
 <div id="popup-content">
-    <label for="inputGithubToken">Github token:</label><input type="password" id="inputGithubToken"><br/>
-    <label for="inputAesKey">AES key:</label><input type="password" id="inputAesKey"><br/>
-    <input id="btnGithubSave" type="button" value="Save">
-    <input id="btnCallGithubSync" type="button" value="Sync">
+    <div id="divMain">
+        <label for="inputGithubToken">Github token:</label><br/>
+        <input type="password" id="inputGithubToken"><br/>
+        <label for="inputAesKey">AES key:</label><br/>
+        <input type="password" id="inputAesKey"><br/><br/>
+        <input id="btnGithubSave" type="button" value="Save">
+    </div>
+
+    <div id="divSyncContainer">
+        <img id="imgLoading" src="spinner.gif" style="display: none">
+        <input id="btnCallGithubSync" type="button" value="Sync the bookmarks">
+    </div>
 </div>
 
 <script src="jquery-3.3.1.min.js"></script>

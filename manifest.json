@@ -18,15 +18,15 @@
     "webNavigation",
     "webRequest",
     "storage",
-    "*://api.github.com/*",
-    "*://github.com/*"
+    "<all_urls>"
   ],
   "browser_action": {
     "default_icon": "icons/main.png",
+    "browser_style": true,
     "theme_icons": [
       {
-        "light": "icons/main.png",
-        "dark": "icons/main_dark.png",
+        "light": "icons/main_dark.png",
+        "dark": "icons/main.png",
         "size": 32
       }
     ],
