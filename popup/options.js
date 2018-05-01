@@ -14,27 +14,33 @@
  *    limitations under the License.
  */
 
-// function createNewRepo(token) {
-//     $.ajax({
-//         type: 'POST',
-//         url: 'https://api.github.com/user/repos',
-//         headers: {
-//             'Authorization': `token ${token}`
-//         },
-//         data: JSON.stringify({
-//             name: "bookmarks",
-//             auto_init: true
-//         }),
-//         dataType: 'json',
-//         success: function (data) {
-//             console.log(JSON.stringify(data));
-//         }, error: function (xhr, textStatus, errorThrown) {
-//             console.log(JSON.stringify(xhr));
-//             console.log(JSON.stringify(textStatus));
-//             console.log(JSON.stringify(errorThrown));
-//         }
-//     });
-// }
+/**
+ * Create a new repo for the user
+ * @param token
+ * @param repo_name - The git repo name
+ * @param successCallback
+ * @param errorCallback
+ */
+function createNewRepo(token, repo_name, successCallback, errorCallback) {
+    $.ajax({
+        type: 'POST',
+        url: 'https://api.github.com/user/repos',
+        headers: {
+            'Authorization': `token ${token}`
+        },
+        data: JSON.stringify({
+            name: "bookmarks",
+            auto_init: true
+        }),
+        dataType: 'json',
+        async: false,
+        success: function (data) {
+            successCallback(data);
+        }, error: function (xhr, ajaxOptions, thrownError) {
+            errorCallback(xhr, ajaxOptions, thrownError);
+        }
+    });
+}
 
 /**
  * Get the ref of the master branch
@@ -56,6 +62,55 @@ function getRef(token, username, repo_name, successCallback, errorCallback) {
             successCallback(data);
         }, error: function (xhr, ajaxOptions, thrownError) {
             errorCallback(xhr, ajaxOptions, thrownError);
+        }
+    });
+}
+
+
+/**
+ * Get the current user based on the token (synchronous method)
+ * @param token
+ * @param successCallback
+ * @param errorCallback
+ */
+function getUsername(token, successCallback, errorCallback) {
+    $.ajax({
+        type: 'GET',
+        url: "https://api.github.com/user",
+        headers: {
+            'Authorization': `token ${token}`
+        },
+        dataType: 'json',
+        async: false,
+        success: function (data) {
+            successCallback(data);
+        }, error: function (xhr, ajaxOptions, thrownError) {
+            errorCallback(xhr, ajaxOptions, thrownError);
+        }
+    });
+}
+
+
+/**
+ * Get the current user based on the token (synchronous method)
+ * @param token
+ * @param username - The git user
+ * @param repo_name - The git repo name
+ * @param successCallback
+ */
+function checkIfRepoExist(token, username, repo_name, successCallback) {
+    $.ajax({
+        type: 'GET',
+        url: `https://api.github.com/repos/${username}/${repo_name}`,
+        headers: {
+            'Authorization': `token ${token}`
+        },
+        dataType: 'json',
+        async: false,
+        success: function (data) {
+            successCallback(true);
+        }, error: function (xhr, ajaxOptions, thrownError) {
+            successCallback(false); //"status":404,"statusText":"Not Found"
         }
     });
 }
@@ -87,7 +142,7 @@ function getCommitSha(token, username, repo_name, tree_sha, successCallback, err
 }
 
 /**
- * This function upload the blob to branch
+ * This function upload the blob to branch (synchronous method)
  * @param token - The github token
  * @param username - The git user
  * @param repo_name - The git repo name
@@ -97,7 +152,7 @@ function getCommitSha(token, username, repo_name, tree_sha, successCallback, err
  * @param errorCallback
  */
 function uploadBlob(token, username, repo_name, key, blob, successCallback, errorCallback) {
-    let b64_enc_blob = btoa(CryptoJS.AES.encrypt(JSON.stringify(blob), key).toString());
+    let b64_enc_blob = btoa(CryptoJS.AES.encrypt(blob, key).toString());
 
     $.ajax({
         type: 'POST',
@@ -145,31 +200,24 @@ function commit(token, username, repo_name, newTreeSha, commitSha, successCallba
 
 
 /**
- * This function create a new tree and link the blob to it
+ * This function create a new tree and link the blob to it (synchronous method)
  * @param token - The github token
  * @param username - The git user
  * @param repoName - The git repo name
  * @param treeSha - The sha of the latest tree
- * @param uploadedBlobs - The blobs saved to github
+ * @param bookmarkAsBlob - The blob saved to github
  * @param successCallback
  * @param errorCallback
  */
-function createTreeForBlob(token, username, repoName, treeSha, uploadedBlobs, successCallback, errorCallback) {
-    var treeBlobs = [];
-
-    uploadedBlobs.forEach(function (blob) {
-        let blobSha = blob.sha;
-        treeBlobs.push({
-            path: `${blobSha}.data`,
-            mode: "100644",
-            type: "blob",
-            sha: blobSha
-        });
-    });
-
+function createTreeForBlob(token, username, repoName, treeSha, bookmarkAsBlob, successCallback, errorCallback) {
     let treeData = JSON.stringify({
         base_tree: treeSha,
-        tree: treeBlobs
+        tree: [{
+            path: "bookmark.enc",
+            mode: "100644",
+            type: "blob",
+            sha: bookmarkAsBlob.sha
+        }]
     });
 
     $.ajax({
@@ -190,7 +238,7 @@ function createTreeForBlob(token, username, repoName, treeSha, uploadedBlobs, su
 }
 
 /**
- * Update the selected tree reference
+ * Update the selected tree reference (synchronous method)
  * @param token - The github token
  * @param username - The git user
  * @param repoName - The git repo name
@@ -228,27 +276,79 @@ function setActionTriggers() {
     disableUiAction(false);
 
     $("#btnGithubSave").click(function () {
-        browser.storage.local.set({
-            github: {
-                token: $('#inputGithubToken').val(),
-                key: $('#inputAesKey').val(),
+        browser.storage.local.get("github", function (item) {
+            let github = item.github;
+
+            if (!github) {
+                github = {};
             }
+
+            github.token = $('#inputGithubToken').val();
+            github.key = $('#inputAesKey').val();
+            github.repo = $('#inputRepoName').val();
+
+            browser.storage.local.set({
+                github: github
+            });
         });
     });
+
 
     $("#btnCallGithubSync").click(function () {
         browser.storage.local.get("github", function (item) {
             let github = item.github;
             var key = github.key;
             var token = github.token;
-            let username = "doi9t";
-            let repoName = "bookmarks";
+            var repoName = github.repo;
+            var username = github.user;
+            var savedRev = github.rev;
+            var isRepoPresent = false;
 
-            if (token && key) {
+            console.log(`Last saved tree rev -> ${savedRev}`);
+
+            if (token && key && repoName) {
+                if (!username) {
+                    getUsername(token, function getUsernameSuccessCallback(userData) {
+                        //Save the username
+                        username = userData.login;
+                        github.user = username;
+                        browser.storage.local.set({
+                            github: github
+                        });
+
+                        console.log("found username -> " + username);
+                    }, apiError);
+                }
+
+                if (!username) {
+                    return;
+                }
+
+                checkIfRepoExist(token, username, repoName, function (isRepoPresentData) {
+                    if (!isRepoPresentData) { //Create the repo
+                        console.log("The repo is NOT present!");
+                        console.log("Creating the repo!");
+
+                        createNewRepo(token, repoName, function (repoData) {
+                            console.log(`The repo is created (id -> ${repoData.id})!`);
+                            isRepoPresent = true;
+                        }, apiError);
+                    } else {
+                        console.log("The repo is present!");
+                        isRepoPresent = true;
+                    }
+                });
+
+                if (!isRepoPresent) {
+                    console.log("The repo is NOT present, quitting!");
+                    return;
+                }
+
                 showSyncSpinner(true);
                 browser.bookmarks.getTree(function (bookmarkTreeNodes) {
-                    let bookmarks = [];
-                    fillBookmarkList(bookmarkTreeNodes[0], bookmarks);
+                    let bookmarksAsList = [];
+                    fillBookmarkList(bookmarkTreeNodes[0], bookmarksAsList);
+                    let bookmarks = JSON.stringify(bookmarksAsList);
 
                     //Get the tree ref
                     getRef(token, username, repoName, function getRefSuccessCallback(refData) {
@@ -256,17 +356,22 @@ function setActionTriggers() {
                         console.log(`The tree sha is ${treeSha}`);
 
                         getCommitSha(token, username, repoName, treeSha, function getRefSuccessCallback(commitData) {
-                            var uploadedBlobs = [];
+                            var bookmarkAsBlob = null;
                             var commitSha = commitData.sha;
                             console.log(`Sha of the commit ${commitSha}`);
 
                             uploadBlob(token, username, repoName, key, bookmarks, function (blobData) {
                                 console.log(`The blob is uploaded (sha -> ${blobData.sha}) !`);
-                                uploadedBlobs.push(blobData);
+                                bookmarkAsBlob = blobData;
                             }, apiError);
 
+                            if (bookmarkAsBlob == null) {
+                                apiError("bookmarkAsBlob is null");
+                                return;
+                            }
+
                             //Create a tree for the uploaded blobs
-                            createTreeForBlob(token, username, repoName, treeSha, uploadedBlobs, function (treeData) {
+                            createTreeForBlob(token, username, repoName, treeSha, bookmarkAsBlob, function (treeData) {
                                 let newTreeSha = treeData.sha;
 
                                 console.log(`The tree for the "${newTreeSha}" file has been created (url -> ${treeData.url}) !`);
@@ -279,6 +384,12 @@ function setActionTriggers() {
                                     updateReference(token, username, repoName, treeSha, commitSha, function (referenceData) {
                                         console.log(`The reference sha "${referenceData["object"].sha}"`);
                                         showSyncSpinner(false);
+
+                                        //Save the latest revision
+                                        github.rev = commitSha;
+                                        browser.storage.local.set({
+                                            github: github
+                                        });
                                     }, apiError);
                                 }, apiError);
                             }, apiError);
@@ -286,7 +397,7 @@ function setActionTriggers() {
                     }, apiError);
                 });
             } else {
-                alert("The github token or the key is undefined!");
+                alert("The github token, key or the repo is undefined!");
             }
         });
     });
@@ -296,8 +407,11 @@ function setComponentsDefaultValues() {
     browser.storage.local.get("github", function (item) {
         let github = item.github;
 
-        $('#inputGithubToken').val(github.token);
-        $('#inputAesKey').val(github.key);
+        if (github) {
+            $('#inputGithubToken').val(github.token);
+            $('#inputAesKey').val(github.key);
+            $('#inputRepoName').val(github.repo);
+        }
     });
 }
 
