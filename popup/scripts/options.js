@@ -14,6 +14,10 @@
  *    limitations under the License.
  */
 
+
+//TODO: Uses LZMA-JS -> https://www.npmjs.com/package/lzma
+//TODO: Add an option to delete all browser's bookmarks & sync with server
+
 const BASE_API_URL = "https://api.github.com";
 const BOOKMARK_FILE_NAME = "bookmark.enc";
 
@@ -135,9 +139,9 @@ function checkIfRepoExist(token, username, repo_name, successCallback) {
         },
         dataType: 'json',
         async: false,
-        success: function (data) {
+        success: function () {
             successCallback(true);
-        }, error: function (xhr, ajaxOptions, thrownError) {
+        }, error: function () {
             successCallback(false); //"status":404,"statusText":"Not Found"
         }
     });
@@ -285,6 +289,111 @@ function showSyncSpinner(show) {
     $("#imgLoading").toggle(show);
 }
 
+function mergeServerBookmarksWithCurrent(token, username, repoName, headCommitSha, key, config) {
+    getTree(token, username, repoName, headCommitSha, function (treeData) {
+
+        //Find the blob of the bookmark
+        for (blob of treeData.tree) {
+            //The blob if found
+            if (BOOKMARK_FILE_NAME === blob.path) {
+                let blobUrl = blob.url;
+                console.log(`Fetching the blob at ${blobUrl}`);
+
+                //Fetch the blob data (synchronous)
+                $.ajax({
+                    type: 'GET',
+                    url: blobUrl,
+                    headers: {
+                        'Authorization': `token ${token}`
+                    },
+                    dataType: 'json',
+                    success: function (data) {
+                        var bookmarks =
+                            JSON.parse(CryptoJS.AES.decrypt(data.content.replace(/\n/g, ''), key, config).toString(CryptoJS.enc.Utf8));
+
+                        for (bookmarksRoot of bookmarks) {
+
+                            var currentChildren =  bookmarksRoot.children;
+
+                            currentChildren.sort(function(a, b){
+                                return a.index < b.index;
+                            });
+
+                            for (bookmarksRootItem of currentChildren) {
+                                mergeBookmarks(bookmarksRootItem, null);
+                            }
+                        }
+                    }, error: apiError
+                });
+                break;
+            }
+        }
+    }, apiError);
+}
+
+
+function bookmarkError(error) {
+    console.log(`There's an error while searching the bookmark: ${error}`);
+}
+
+function createBookmark(bookmarkItem, lastCreatedBookmarkId, callback) {
+
+    let newBookmark = {
+        index: bookmarkItem.index,
+        parentId: (lastCreatedBookmarkId !== null) ? lastCreatedBookmarkId : bookmarkItem.parentId,
+        title: bookmarkItem.title,
+        url: bookmarkItem.url
+    };
+
+    browser.bookmarks.create(newBookmark).then(function (bookmark) {
+        callback(bookmark);
+    });
+}
+
+function mergeBookmarks(remoteBookmarkItem, lastCreatedBookmarkId) {
+    var searching;
+    var remoteBookmarkTitle = remoteBookmarkItem.title;
+    var remoteBookmarkUrl = remoteBookmarkItem.url;
+    var remoteBookmarkId = remoteBookmarkItem.id;
+
+    if (remoteBookmarkUrl) { //Bookmark
+        searching = browser.bookmarks.search({url: remoteBookmarkUrl, title: remoteBookmarkTitle});
+    } else { //Folder
+        searching = browser.bookmarks.search({title: remoteBookmarkTitle});
+    }
+
+    //Search the local bookmarks
+    searching.then(function (localBookmarkItems) {
+        var createNewBookmark = false;
+
+        if (localBookmarkItems.length) { //The bookmark(s) exist in the current browser
+            for (localBookmark of localBookmarkItems) {
+                if (localBookmark.id === remoteBookmarkId) {
+                    createNewBookmark = true;
+                    break;
+                }
+            }
+        } else {
+            createNewBookmark = true;
+        }
+
+        if (createNewBookmark) { //The bookmark(s) does not exist in the current browser, create it
+            createBookmark(remoteBookmarkItem, lastCreatedBookmarkId, function (bookmark) {
+
+                var currentChildren =  remoteBookmarkItem.children;
+
+                currentChildren.sort(function(a, b){
+                    return a.index < b.index;
+                });
+
+                for (child of remoteBookmarkItem.children) {
+                    mergeBookmarks(child, bookmark.id);
+                }
+            });
+        }
+    }, bookmarkError);
+}
+
 function setActionTriggers() {
     disableUiAction(false);
 
@@ -298,7 +407,7 @@ function setActionTriggers() {
 
             github.token = $('#inputGithubToken').val();
             github.repo = $('#inputRepoName').val();
-
+            github.security = JSON.parse(atob($('#inputAesSecurity').val()));
             browser.storage.local.set({
                 github: github
             });
@@ -315,7 +424,7 @@ function setActionTriggers() {
             var username = github.user;
             var savedRef = github.ref;
             var isRepoPresent = false;
-            var config = {iv: github.security.iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7}
+            var config = {iv: github.security.iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7};
 
             console.log(`Last saved commit sha -> ${savedRef}`);
 
@@ -362,10 +471,12 @@ function setActionTriggers() {
 
                 showSyncSpinner(true);
                 browser.bookmarks.getTree(function (bookmarkTreeNodes) {
-                    let bookmarksAsList = [];
-                    fillBookmarkList(bookmarkTreeNodes[0], bookmarksAsList);
+                    let bookmarksRootAsList = [];
 
-                    let bookmarks = JSON.stringify(bookmarksAsList);
+                    //Keep the roots (Bookmarks Menu | Bookmarks Toolbar | Other Bookmarks | Mobile Bookmarks)
+                    for (child of bookmarkTreeNodes[0].children) {
+                        bookmarksRootAsList.push(child);
+                    }
 
                     //Get the tree ref
                     getRef(token, username, repoName, function getRefSuccessCallback(refData) {
@@ -373,42 +484,12 @@ function setActionTriggers() {
                         console.log(`The latest commit sha is ${headCommitSha}`);
 
                         if (savedRef !== headCommitSha) { //The current bookmarks are desynced, merge before committing!
-                            getTree(token, username, repoName, headCommitSha, function (treeData) {
-
-                                //Find the blob of the bookmark
-                                for (blob of treeData.tree) {
-                                    //The blob if found
-                                    if (BOOKMARK_FILE_NAME === blob.path) {
-                                        var blobData = null;
-                                        let blobUrl = blob.url;
-                                        console.log(`Fetching the blob at ${blobUrl}`);
-
-                                        //Fetch the blob data (synchronous)
-                                        $.ajax({
-                                            type: 'GET',
-                                            url: blobUrl,
-                                            headers: {
-                                                'Authorization': `token ${token}`
-                                            },
-                                            async: false,
-                                            dataType: 'json',
-                                            success: function (data) {
-                                                blobData = data.content;
-                                            }, error: apiError
-                                        });
-
-                                        var decryptedBlob = CryptoJS.AES.decrypt(blobData.replace(/\n/g, ''), key, config).toString(CryptoJS.enc.Utf8);
-
-
-                                        break;
-                                    }
-                                }
-                            }, apiError);
+                            mergeServerBookmarksWithCurrent(token, username, repoName, headCommitSha, key, config);
                         }
 
                         var bookmarkAsBlob = null;
 
-                        uploadBlob(token, username, repoName, key, config, bookmarks, function (blobData) {
+                        uploadBlob(token, username, repoName, key, config, JSON.stringify(bookmarksRootAsList), function (blobData) {
                             console.log(`The blob is uploaded (sha -> ${blobData.sha}) !`);
                             bookmarkAsBlob = blobData;
                         }, apiError);
@@ -501,24 +582,16 @@ function disableUiAction(value) {
     }
 }
 
-/**
- * This function fill the bookmarks list with the groups of bookmarks
- * @param bookmarkItem - The root of the bookmarks (from the browser API)
- * @param bookmarks - The list to be filled
- */
-function fillBookmarkList(bookmarkItem, bookmarks) {
-    bookmarks.push(bookmarkItem);
-
-    if (bookmarkItem.children) {
-        for (child of bookmarkItem.children) {
-            fillBookmarkList(child, bookmarks);
-        }
-    }
-}
-
 function reportExecuteScriptError(error) {
     console.error(`Failed to execute content script: ${error.message}`);
     disableUiAction(true);
 }
 
+
+function bookmarkEvent() {
+
+}
+
 browser.tabs.executeScript({code: ""}).then(showMainView).catch(reportExecuteScriptError);
+browser.bookmarks.onCreated.addListener(bookmarkEvent);
+browser.bookmarks.onRemoved.addListener(bookmarkEvent);
