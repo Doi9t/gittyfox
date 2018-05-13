@@ -20,6 +20,12 @@
 
 const BASE_API_URL = "https://api.github.com";
 const BOOKMARK_FILE_NAME = "bookmark.enc";
+const OVERRIDE_LOCAL_WITH_SERVER = "OVERRIDE_LOCAL_WITH_SERVER";
+const OVERRIDE_SERVER_WITH_LOCAL = "OVERRIDE_SERVER_WITH_LOCAL";
+const BOOKMARK_ROOT_MENU = "menu________";
+const BOOKMARK_ROOT_TOOLBAR = "toolbar_____";
+const BOOKMARK_ROOT_UNFILED = "unfiled_____";
+const BOOKMARK_ROOT_MOBILE = "mobile______";
 
 /**
  * Create a new repo for the user
@@ -289,17 +295,52 @@ function showSyncSpinner(show) {
     $("#imgLoading").toggle(show);
 }
 
-function mergeServerBookmarksWithCurrent(token, username, repoName, headCommitSha, key, config) {
+
+function deleteAllLocalBookmarks() {
+    for (var currentTreeName of [BOOKMARK_ROOT_MENU, BOOKMARK_ROOT_TOOLBAR, BOOKMARK_ROOT_UNFILED, BOOKMARK_ROOT_MOBILE]) {
+        browser.bookmarks.getSubTree(currentTreeName).then(function (treeArr) {
+
+            var tree = treeArr[0];
+
+            for (var children of tree.children) {
+                var id = children.id;
+
+                if (children.url) {
+                    browser.bookmarks.remove(id);
+                } else {
+                    browser.bookmarks.removeTree(id);
+                }
+            }
+        });
+    }
+}
+
+function createNewBookmark(currentElement, parentId) {
+    browser.bookmarks.create({
+        index: currentElement.index,
+        parentId: (parentId !== null ? parentId : currentElement.parentId),
+        title: currentElement.title,
+        url: currentElement.url
+    }).then(function (bookmark) {
+        for (var bookmarksItem of sortBookmark(currentElement.children)) {
+            createNewBookmark(bookmarksItem, bookmark.id);
+        }
+    });
+}
+
+function overrideLocalByRemote(token, username, repoName, headCommitSha, key, config) {
+    deleteAllLocalBookmarks();
+
     getTree(token, username, repoName, headCommitSha, function (treeData) {
 
         //Find the blob of the bookmark
-        for (blob of treeData.tree) {
+        for (var blob of treeData.tree) {
             //The blob if found
             if (BOOKMARK_FILE_NAME === blob.path) {
                 let blobUrl = blob.url;
                 console.log(`Fetching the blob at ${blobUrl}`);
 
-                //Fetch the blob data (synchronous)
+                //Fetch the blob data
                 $.ajax({
                     type: 'GET',
                     url: blobUrl,
@@ -311,16 +352,9 @@ function mergeServerBookmarksWithCurrent(token, username, repoName, headCommitSh
                         var bookmarks =
                             JSON.parse(CryptoJS.AES.decrypt(data.content.replace(/\n/g, ''), key, config).toString(CryptoJS.enc.Utf8));
 
-                        for (bookmarksRoot of bookmarks) {
-
-                            var currentChildren =  bookmarksRoot.children;
-
-                            currentChildren.sort(function(a, b){
-                                return a.index < b.index;
-                            });
-
-                            for (bookmarksRootItem of currentChildren) {
-                                mergeBookmarks(bookmarksRootItem, null);
+                        for (var bookmarksRoot of bookmarks) {
+                            for (var rootChild of sortBookmark(bookmarksRoot.children)) {
+                                createNewBookmark(rootChild, bookmarksRoot.id);
                             }
                         }
                     }, error: apiError
@@ -331,67 +365,136 @@ function mergeServerBookmarksWithCurrent(token, username, repoName, headCommitSh
     }, apiError);
 }
 
+function sortBookmark(bookmark) {
+    bookmark.sort(function (a, b) {
+        return a.index < b.index;
+    });
+
+    return bookmark;
+}
 
 function bookmarkError(error) {
     console.log(`There's an error while searching the bookmark: ${error}`);
 }
 
-function createBookmark(bookmarkItem, lastCreatedBookmarkId, callback) {
+function getLocalBookmarkRootsFromTree(bookmarkTreeNodes) {
+    let bookmarksRootAsList = [];
 
-    let newBookmark = {
-        index: bookmarkItem.index,
-        parentId: (lastCreatedBookmarkId !== null) ? lastCreatedBookmarkId : bookmarkItem.parentId,
-        title: bookmarkItem.title,
-        url: bookmarkItem.url
-    };
+    //Keep the roots (Bookmarks Menu | Bookmarks Toolbar | Other Bookmarks | Mobile Bookmarks)
+    for (var child of bookmarkTreeNodes[0].children) {
+        bookmarksRootAsList.push(child);
+    }
 
-    browser.bookmarks.create(newBookmark).then(function (bookmark) {
-        callback(bookmark);
+    return bookmarksRootAsList;
+}
+
+function overrideServerWithLocal(token, username, repoName, headCommitSha, key, config) {
+    browser.bookmarks.getTree(function (bookmarkTreeNodes) {
+        let bookmarksRootAsList = getLocalBookmarkRootsFromTree(bookmarkTreeNodes);
+
+        var bookmarkAsBlob = null;
+
+        uploadBlob(token, username, repoName, key, config, JSON.stringify(bookmarksRootAsList), function (blobData) {
+            console.log(`The blob is uploaded (sha -> ${blobData.sha}) !`);
+            bookmarkAsBlob = blobData;
+        }, apiError);
+
+        if (bookmarkAsBlob == null) {
+            throw "bookmarkAsBlob is null";
+        }
+
+        //Create a tree for the uploaded blobs
+        createTreeForBlob(token, username, repoName, headCommitSha, bookmarkAsBlob, function (treeData) {
+            let newTreeSha = treeData.sha;
+
+            console.log(`The tree for the "${newTreeSha}" file has been created (url -> ${treeData.url}) !`);
+
+            //Commit
+            commit(token, username, repoName, newTreeSha, headCommitSha, function (commitData) {
+                let commitSha = commitData.sha;
+                console.log(`The commit sha for the tree "${newTreeSha}" is "${commitSha}"`);
+
+                updateReference(token, username, repoName, headCommitSha, commitSha, function (referenceData) {
+                    console.log(`The reference sha "${referenceData["object"].sha}"`);
+                }, apiError);
+            }, apiError);
+        }, apiError);
     });
 }
 
-function mergeBookmarks(remoteBookmarkItem, lastCreatedBookmarkId) {
-    var searching;
-    var remoteBookmarkTitle = remoteBookmarkItem.title;
-    var remoteBookmarkUrl = remoteBookmarkItem.url;
-    var remoteBookmarkId = remoteBookmarkItem.id;
+function executeBookmarkAction(action) {
+    browser.storage.local.get("github", function (item) {
+        let github = item.github;
+        var key = github.security.key;
+        var token = github.token;
+        var repoName = github.repo;
+        var username = github.user;
+        var isRepoPresent = false;
+        var config = {iv: github.security.iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7};
 
-    if (remoteBookmarkUrl) { //Bookmark
-        searching = browser.bookmarks.search({url: remoteBookmarkUrl, title: remoteBookmarkTitle});
-    } else { //Folder
-        searching = browser.bookmarks.search({title: remoteBookmarkTitle});
-    }
+        if (token && key && repoName) {
+            if (!username) {
+                getUsername(token, function getUsernameSuccessCallback(userData) {
+                    //Save the username
+                    username = userData.login;
+                    github.user = username;
+                    browser.storage.local.set({
+                        github: github
+                    });
 
-    //Search the local bookmarks
-    searching.then(function (localBookmarkItems) {
-        var createNewBookmark = false;
-
-        if (localBookmarkItems.length) { //The bookmark(s) exist in the current browser
-            for (localBookmark of localBookmarkItems) {
-                if (localBookmark.id === remoteBookmarkId) {
-                    createNewBookmark = true;
-                    break;
-                }
+                    console.log("found username -> " + username);
+                }, apiError);
             }
-        } else {
-            createNewBookmark = true;
-        }
 
-        if (createNewBookmark) { //The bookmark(s) does not exist in the current browser, create it
-            createBookmark(remoteBookmarkItem, lastCreatedBookmarkId, function (bookmark) {
+            if (!username) {
+                showSyncSpinner(false);
+                throw "The username is NOT present, quitting!";
+            }
 
-                var currentChildren =  remoteBookmarkItem.children;
+            checkIfRepoExist(token, username, repoName, function (isRepoPresentData) {
+                if (!isRepoPresentData) { //Create the repo
+                    console.log("The repo is NOT present!");
+                    console.log(`Creating the repo ${repoName}!`);
 
-                currentChildren.sort(function(a, b){
-                    return a.index < b.index;
-                });
-
-                for (child of remoteBookmarkItem.children) {
-                    mergeBookmarks(child, bookmark.id);
+                    createNewRepo(token, repoName, function (repoData) {
+                        console.log(`The repo is created (id -> ${repoData.id})!`);
+                        isRepoPresent = true;
+                    }, apiError);
+                } else {
+                    console.log("The repo is present!");
+                    isRepoPresent = true;
                 }
             });
+
+            if (!isRepoPresent) {
+                showSyncSpinner(false);
+                throw "The repo is NOT present, quitting!";
+            }
+
+            showSyncSpinner(true);
+
+            //Get the tree ref
+            getRef(token, username, repoName, function getRefSuccessCallback(refData) {
+                var headCommitSha = refData["object"]["sha"];
+                console.log(`The latest commit sha is ${headCommitSha}`);
+
+                switch (action) {
+                    case OVERRIDE_LOCAL_WITH_SERVER:
+                        overrideLocalByRemote(token, username, repoName, headCommitSha, key, config);
+                        break;
+                    case OVERRIDE_SERVER_WITH_LOCAL:
+                        overrideServerWithLocal(token, username, repoName, headCommitSha, key, config);
+                        break;
+                    default:
+                        throw "unknown action!";
+                }
+
+                showSyncSpinner(false);
+            }, apiError);
+        } else {
+            alert("The github token, key or the repo is undefined!");
         }
-    }, bookmarkError);
+    });
 }
 
 function setActionTriggers() {
@@ -414,120 +517,12 @@ function setActionTriggers() {
         });
     });
 
+    $("#btnCallGithubOverrideLocal").click(function () {
+        executeBookmarkAction(OVERRIDE_LOCAL_WITH_SERVER);
+    });
 
-    $("#btnCallGithubSync").click(function () {
-        browser.storage.local.get("github", function (item) {
-            let github = item.github;
-            var key = github.security.key;
-            var token = github.token;
-            var repoName = github.repo;
-            var username = github.user;
-            var savedRef = github.ref;
-            var isRepoPresent = false;
-            var config = {iv: github.security.iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7};
-
-            console.log(`Last saved commit sha -> ${savedRef}`);
-
-            if (token && key && repoName) {
-                if (!username) {
-                    getUsername(token, function getUsernameSuccessCallback(userData) {
-                        //Save the username
-                        username = userData.login;
-                        github.user = username;
-                        browser.storage.local.set({
-                            github: github
-                        });
-
-                        console.log("found username -> " + username);
-                    }, apiError);
-                }
-
-                if (!username) {
-                    showSyncSpinner(false);
-                    console.log("The username is NOT present, quitting!");
-                    return;
-                }
-
-                checkIfRepoExist(token, username, repoName, function (isRepoPresentData) {
-                    if (!isRepoPresentData) { //Create the repo
-                        console.log("The repo is NOT present!");
-                        console.log(`Creating the repo ${repoName}!`);
-
-                        createNewRepo(token, repoName, function (repoData) {
-                            console.log(`The repo is created (id -> ${repoData.id})!`);
-                            isRepoPresent = true;
-                        }, apiError);
-                    } else {
-                        console.log("The repo is present!");
-                        isRepoPresent = true;
-                    }
-                });
-
-                if (!isRepoPresent) {
-                    showSyncSpinner(false);
-                    console.log("The repo is NOT present, quitting!");
-                    return;
-                }
-
-                showSyncSpinner(true);
-                browser.bookmarks.getTree(function (bookmarkTreeNodes) {
-                    let bookmarksRootAsList = [];
-
-                    //Keep the roots (Bookmarks Menu | Bookmarks Toolbar | Other Bookmarks | Mobile Bookmarks)
-                    for (child of bookmarkTreeNodes[0].children) {
-                        bookmarksRootAsList.push(child);
-                    }
-
-                    //Get the tree ref
-                    getRef(token, username, repoName, function getRefSuccessCallback(refData) {
-                        var headCommitSha = refData["object"]["sha"];
-                        console.log(`The latest commit sha is ${headCommitSha}`);
-
-                        if (savedRef !== headCommitSha) { //The current bookmarks are desynced, merge before committing!
-                            mergeServerBookmarksWithCurrent(token, username, repoName, headCommitSha, key, config);
-                        }
-
-                        var bookmarkAsBlob = null;
-
-                        uploadBlob(token, username, repoName, key, config, JSON.stringify(bookmarksRootAsList), function (blobData) {
-                            console.log(`The blob is uploaded (sha -> ${blobData.sha}) !`);
-                            bookmarkAsBlob = blobData;
-                        }, apiError);
-
-                        if (bookmarkAsBlob == null) {
-                            apiError("bookmarkAsBlob is null");
-                            return;
-                        }
-
-                        //Create a tree for the uploaded blobs
-                        createTreeForBlob(token, username, repoName, headCommitSha, bookmarkAsBlob, function (treeData) {
-                            let newTreeSha = treeData.sha;
-
-                            console.log(`The tree for the "${newTreeSha}" file has been created (url -> ${treeData.url}) !`);
-
-                            //Commit
-                            commit(token, username, repoName, newTreeSha, headCommitSha, function (commitData) {
-                                let commitSha = commitData.sha;
-                                console.log(`The commit sha for the tree "${newTreeSha}" is "${commitSha}"`);
-
-                                updateReference(token, username, repoName, headCommitSha, commitSha, function (referenceData) {
-                                    console.log(`The reference sha "${referenceData["object"].sha}"`);
-                                    showSyncSpinner(false);
-
-                                    //Save the latest revision
-                                    github.ref = commitSha;
-                                    browser.storage.local.set({
-                                        github: github
-                                    });
-                                }, apiError);
-                            }, apiError);
-                        }, apiError);
-                    }, apiError);
-                });
-            } else {
-                alert("The github token, key or the repo is undefined!");
-            }
-        });
+    $("#btnCallGithubOverrideServer").click(function () {
+        executeBookmarkAction(OVERRIDE_SERVER_WITH_LOCAL);
     });
 }
 
@@ -567,17 +562,17 @@ function apiError(xhr, ajaxOptions, thrownError) {
 
 
 function disableUiAction(value) {
-    let $btnCallGithubSync = $("#btnCallGithubSync");
+    let $btnCallGithubOverrideLocal = $("#btnCallGithubOverrideLocal");
     let $btnGithubSave = $("#btnGithubSave");
 
-    $btnCallGithubSync.prop("disabled", value);
+    $btnCallGithubOverrideLocal.prop("disabled", value);
     $btnGithubSave.prop("disabled", value);
 
     if (value) {
-        $btnCallGithubSync.addClass("disabled");
+        $btnCallGithubOverrideLocal.addClass("disabled");
         $btnGithubSave.addClass("disabled");
     } else {
-        $btnCallGithubSync.removeClass("disabled");
+        $btnCallGithubOverrideLocal.removeClass("disabled");
         $btnGithubSave.removeClass("disabled");
     }
 }
@@ -586,7 +581,6 @@ function reportExecuteScriptError(error) {
     console.error(`Failed to execute content script: ${error.message}`);
     disableUiAction(true);
 }
-
 
 function bookmarkEvent() {
 
