@@ -61,3 +61,18 @@ input{
     width: 60px;
     height: 60px;
 }
+
+#txtAreaKeyInit {
+    resize: none;
+    width: 100%;
+    height: 150px;
+}
+
+#popup-init-warning {
+    margin: 9px;
+}
+
+#initName {
+    width: 100%;
+    text-align: center;
+}

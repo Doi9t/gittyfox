@@ -21,7 +21,7 @@
 </head>
 
 <body>
-<div id="popup-content">
+<div id="popup-content" style="display: none">
     <div id="divMain">
         <label for="inputGithubToken">Github token:</label><br/>
         <input type="password" id="inputGithubToken"><br/>
@@ -42,6 +42,17 @@
     </div>
 </div>
 
+<div id="popup-init-warning">
+    <h2 id="initName">Gittyfox</h2>
+    <div style="color: red; font-size: larger">If you lose this generated key, you WILL NOT be able to decrypt the
+        previous encrypted bookmarks. Also, never share this key (If someone has it, they can decrypt your bookmarks)
+        You can skip this step if you already have one
+    </div>
+    <label for="txtAreaKeyInit">Generated key</label>
+    <textarea readonly id="txtAreaKeyInit" cols="30" rows="10"></textarea>
+    <input id="btnInit" class="overrideButton" type="button" value="Ok">
+</div>
+
 <script src="scripts/jquery-3.3.1.min.js"></script>
 
 <script src="scripts/core.min.js"></script>
@@ -51,6 +62,7 @@
 <script src="scripts/cipher-core.min.js"></script>
 <script src="scripts/sha256.min.js"></script>
 <script src="scripts/aes.min.js"></script>
+<script src="scripts/lz-string.min.js"></script>
 <script src="scripts/options.js"></script>
 </body>
 

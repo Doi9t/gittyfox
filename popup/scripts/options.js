@@ -14,10 +14,6 @@
  *    limitations under the License.
  */
 
-
-//TODO: Uses LZMA-JS -> https://www.npmjs.com/package/lzma
-//TODO: Add an option to delete all browser's bookmarks & sync with server
-
 const BASE_API_URL = "https://api.github.com";
 const BOOKMARK_FILE_NAME = "bookmark.enc";
 const OVERRIDE_LOCAL_WITH_SERVER = "OVERRIDE_LOCAL_WITH_SERVER";
@@ -165,7 +161,14 @@ function checkIfRepoExist(token, username, repo_name, successCallback) {
  * @param errorCallback
  */
 function uploadBlob(token, username, repo_name, key, config, blob, successCallback, errorCallback) {
-    let enc_blob = CryptoJS.AES.encrypt(blob, key, config).toString();
+
+    console.log("Size of blob before compression -> " + blob.length);
+    var enc_blob = LZString.compressToUTF16(blob);
+    console.log("Size of blob after compression -> " + enc_blob.length);
+    enc_blob = CryptoJS.AES.encrypt(enc_blob, key, config).toString();
+    console.log("Size of blob after encryption -> " + enc_blob.length);
+    enc_blob = LZString.compressToBase64(enc_blob);
+    console.log("Size of blob after compression -> " + enc_blob.length);
 
     $.ajax({
         type: 'POST',
@@ -350,9 +353,9 @@ function overrideLocalByRemote(token, username, repoName, headCommitSha, key, co
                     dataType: 'json',
                     success: function (data) {
                         var bookmarks =
-                            JSON.parse(CryptoJS.AES.decrypt(data.content.replace(/\n/g, ''), key, config).toString(CryptoJS.enc.Utf8));
+                            bookmarks = JSON.parse(LZString.decompressFromUTF16(CryptoJS.AES.decrypt(LZString.decompressFromBase64(data.content.replace(/\n/g, '')), key, config).toString(CryptoJS.enc.Utf8)))
 
-                        for (var bookmarksRoot of bookmarks) {
+                        for (var bookmarksRoot of sortBookmark(bookmarks)) {
                             for (var rootChild of sortBookmark(bookmarksRoot.children)) {
                                 createNewBookmark(rootChild, bookmarksRoot.id);
                             }
@@ -524,18 +527,52 @@ function setActionTriggers() {
     $("#btnCallGithubOverrideServer").click(function () {
         executeBookmarkAction(OVERRIDE_SERVER_WITH_LOCAL);
     });
+
+    $("#btnInit").click(function () {
+        browser.storage.local.get("github", function (item) {
+            let github = item.github;
+
+            if (!github) {
+                github = {};
+            }
+            github.init = true;
+            hideInitAndShowMainView();
+            browser.storage.local.set({
+                github: github
+            });
+        });
+    });
+}
+
+function hideInitAndShowMainView() {
+    const $popupInitWarning = $("#popup-init-warning");
+    const $popupContent = $("#popup-content");
+
+    $popupInitWarning.hide();
+    $popupContent.show();
 }
 
 function setComponentsDefaultValues() {
     browser.storage.local.get("github", function (item) {
         var github = item.github;
+        var encodedKey;
 
         if (github) {
+            encodedKey = btoa(JSON.stringify(github.security));
+
             $('#inputGithubToken').val(github.token);
             $('#inputRepoName').val(github.repo);
-            $("#inputAesSecurity").val(btoa(JSON.stringify(github.security)));
+            $("#inputAesSecurity").val(encodedKey);
+
+            if (!github.init) {
+                $("#txtAreaKeyInit").text(encodedKey);
+            } else {
+                hideInitAndShowMainView();
+            }
+
         } else {
             github = {
+                init: false,
                 security: {
                     key: CryptoJS.lib.WordArray.random(64).toString(),
                     iv: CryptoJS.lib.WordArray.random(16).toString()
@@ -545,7 +582,10 @@ function setComponentsDefaultValues() {
                 github: github
             });
 
-            $("#inputAesSecurity").val(btoa(JSON.stringify(github.security)));
+            encodedKey = btoa(JSON.stringify(github.security));
+
+            $("#inputAesSecurity").val(encodedKey);
+            $("#txtAreaKeyInit").text(encodedKey);
         }
     });
 }
@@ -563,16 +603,21 @@ function apiError(xhr, ajaxOptions, thrownError) {
 
 function disableUiAction(value) {
     let $btnCallGithubOverrideLocal = $("#btnCallGithubOverrideLocal");
+    let $btnCallGithubOverrideServer = $("#btnCallGithubOverrideServer");
     let $btnGithubSave = $("#btnGithubSave");
 
+    $btnCallGithubOverrideServer.prop("disabled", value);
     $btnCallGithubOverrideLocal.prop("disabled", value);
     $btnGithubSave.prop("disabled", value);
 
+
     if (value) {
         $btnCallGithubOverrideLocal.addClass("disabled");
+        $btnCallGithubOverrideServer.addClass("disabled");
         $btnGithubSave.addClass("disabled");
     } else {
         $btnCallGithubOverrideLocal.removeClass("disabled");
+        $btnCallGithubOverrideServer.removeClass("disabled");
         $btnGithubSave.removeClass("disabled");
     }
 }
