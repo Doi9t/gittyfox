@@ -17,7 +17,8 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <link rel="stylesheet" href="options.css"/>
+    <link rel="stylesheet" href="css/options.css"/>
+    <link rel="stylesheet" href="css/alertify.min.css"/>
 </head>
 
 <body>
@@ -44,13 +45,17 @@
 
 <div id="popup-init-warning">
     <h2 id="initName">Gittyfox</h2>
-    <div style="color: red; font-size: larger">If you lose this generated key, you WILL NOT be able to decrypt the
+    <div style="color: red; font-size: larger">
+        Welcome and thanks for using this add-on!
+        <br><br>
+        If you already have your decryption key, you can directly click on the button next, if not, continue the reading.
+        <br><br>
+        If you lose this generated key, you WILL NOT be able to decrypt the
         previous encrypted bookmarks. Also, never share this key (If someone has it, they can decrypt your bookmarks)
-        You can skip this step if you already have one
     </div>
     <label for="txtAreaKeyInit">Generated key</label>
-    <textarea readonly id="txtAreaKeyInit" cols="30" rows="10"></textarea>
-    <input id="btnInit" class="overrideButton" type="button" value="Ok">
+    <textarea readonly id="txtAreaKeyInit"></textarea>
+    <input id="btnInit" class="overrideButton" type="button" value="Next">
 </div>
 
 <script src="scripts/jquery-3.3.1.min.js"></script>
@@ -63,6 +68,7 @@
 <script src="scripts/sha256.min.js"></script>
 <script src="scripts/aes.min.js"></script>
 <script src="scripts/lz-string.min.js"></script>
+<script src="scripts/alertify.min.js"></script>
 <script src="scripts/options.js"></script>
 </body>
 

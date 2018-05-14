@@ -360,6 +360,7 @@ function overrideLocalByRemote(token, username, repoName, headCommitSha, key, co
                                 createNewBookmark(rootChild, bookmarksRoot.id);
                             }
                         }
+                        alertify.notify('The bookmarks have been replaced with those of the server successfully!', 'success', 5);
                     }, error: apiError
                 });
                 break;
@@ -419,6 +420,8 @@ function overrideServerWithLocal(token, username, repoName, headCommitSha, key, 
 
                 updateReference(token, username, repoName, headCommitSha, commitSha, function (referenceData) {
                     console.log(`The reference sha "${referenceData["object"].sha}"`);
+
+                    alertify.notify('The bookmarks on the server are successfully changed!', 'success', 5);
                 }, apiError);
             }, apiError);
         }, apiError);
@@ -521,11 +524,17 @@ function setActionTriggers() {
     });
 
     $("#btnCallGithubOverrideLocal").click(function () {
-        executeBookmarkAction(OVERRIDE_LOCAL_WITH_SERVER);
+        alertify.confirm('Confirmation', 'Do you really want to delete your local bookmarks with those of the server?', function () {
+            executeBookmarkAction(OVERRIDE_LOCAL_WITH_SERVER);
+        }, function () {
+        });
     });
 
     $("#btnCallGithubOverrideServer").click(function () {
-        executeBookmarkAction(OVERRIDE_SERVER_WITH_LOCAL);
+        alertify.confirm('Confirmation', 'Do you really want to save those bookmark to the server?', function () {
+            executeBookmarkAction(OVERRIDE_SERVER_WITH_LOCAL);
+        }, function () {
+        });
     });
 
     $("#btnInit").click(function () {
