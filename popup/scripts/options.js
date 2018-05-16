@@ -333,11 +333,9 @@ function createNewBookmark(currentElement, parentId) {
     });
 }
 
-function overrideLocalByRemote(token, username, repoName, headCommitSha, key, config) {
-    deleteAllLocalBookmarks();
+function fetchBlobFromCommit(token, username, repoName, headCommitSha, key, config, callback) {
 
     getTree(token, username, repoName, headCommitSha, function (treeData) {
-
         //Find the blob of the bookmark
         for (var blob of treeData.tree) {
             //The blob if found
@@ -355,20 +353,27 @@ function overrideLocalByRemote(token, username, repoName, headCommitSha, key, co
                     dataType: 'json',
                     success: function (data) {
                         var bookmarks =
-                            bookmarks = JSON.parse(LZString.decompressFromUTF16(CryptoJS.AES.decrypt(LZString.decompressFromBase64(data.content.replace(/\n/g, '')), key, config).toString(CryptoJS.enc.Utf8)))
+                            JSON.parse(LZString.decompressFromUTF16(CryptoJS.AES.decrypt(LZString.decompressFromBase64(data.content.replace(/\n/g, '')), key, config).toString(CryptoJS.enc.Utf8)));
 
-                        for (var bookmarksRoot of sortBookmark(bookmarks)) {
-                            for (var rootChild of sortBookmark(bookmarksRoot.children)) {
-                                createNewBookmark(rootChild, bookmarksRoot.id);
-                            }
-                        }
-                        alertify.notify('The bookmarks have been replaced with those of the server successfully!', 'success', 5);
+                        callback(bookmarks);
                     }, error: apiError
                 });
                 break;
             }
         }
     }, apiError);
+}
+
+function overrideLocalByRemote(token, username, repoName, headCommitSha, key, config) {
+    deleteAllLocalBookmarks();
+    fetchBlobFromCommit(token, username, repoName, headCommitSha, key, config, function (bookmarks) {
+        for (var bookmarksRoot of sortBookmark(bookmarks)) {
+            for (var rootChild of sortBookmark(bookmarksRoot.children)) {
+                createNewBookmark(rootChild, bookmarksRoot.id);
+            }
+        }
+        alertify.notify('The bookmarks have been replaced with those of the server successfully!', 'success', 5);
+    });
 }
 
 function sortBookmark(bookmark) {
@@ -422,7 +427,6 @@ function overrideServerWithLocal(token, username, repoName, headCommitSha, key, 
 
                 updateReference(token, username, repoName, headCommitSha, commitSha, function (referenceData) {
                     console.log(`The reference sha "${referenceData["object"].sha}"`);
-
                     alertify.notify('The bookmarks on the server are successfully changed!', 'success', 5);
                 }, apiError);
             }, apiError);
@@ -541,6 +545,7 @@ function setActionTriggers() {
                 return;
             }
 
+
             if (token && key && repoName) {
                 $historySelect.empty();
 
@@ -551,13 +556,13 @@ function setActionTriggers() {
                         'Authorization': `token ${token}`
                     },
                     data: JSON.stringify({
+                        author: username,
                         since: `${startDate}T00:00:00Z`,
                         until: `${endDate}T23:59:59Z`
                     }),
                     dataType: 'json',
                     success: function (data) {
                         for (var currentCommit of data) {
-
                             $historySelect.append($('<option>', {
                                 value: currentCommit.sha,
                                 text: currentCommit.commit.committer.date
@@ -568,6 +573,28 @@ function setActionTriggers() {
             } else {
                 alert("The github token, key or the repo is undefined!");
             }
+        });
+    });
+
+    $("#historyRestoreBtn").click(function () {
+
+        browser.storage.local.get("github", function (item) {
+            let github = item.github;
+            var key = github.security.key;
+            var token = github.token;
+            var repoName = github.repo;
+            var username = github.user;
+            var config = {iv: github.security.iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7};
+
+            alertify.confirm('Confirmation', 'Do you really want to replace your local bookmarks with those of the server?', function () {
+                var $historySelect = $("#historySelect option:selected");
+                var selectedSha = $historySelect.val();
+
+                overrideLocalByRemote(token, username, repoName, selectedSha, key, config);
+            }, function () {
+            });
+
+
         });
     });
 
@@ -613,6 +640,11 @@ function setComponentsDefaultValues() {
     $('.history-date').pickadate({
         format: 'yyyy-mm-dd'
     });
+
+    var aWeekAgo = new Date();
+    aWeekAgo.setDate(aWeekAgo.getDate() - 5);
+
+    $("#historyDateStart").val(aWeekAgo.getFullYear() + '-' + ("0" + (aWeekAgo.getMonth() + 1)).slice(-2) + '-' + aWeekAgo.getDate());
 
     browser.storage.local.get("github", function (item) {
         var github = item.github;
