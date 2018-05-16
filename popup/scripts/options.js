@@ -13,6 +13,8 @@
  *    See the License for the specific language governing permissions and
  *    limitations under the License.
  */
+//TODO: Add an history to be able to revert (https://developer.github.com/v3/repos/commits/#list-commits-on-a-repository)
+//TODO: Switch to extension pages instead of popup ? (https://developer.mozilla.org/en-US/Add-ons/WebExtensions/user_interface/Extension_pages)
 
 const BASE_API_URL = "https://api.github.com";
 const BOOKMARK_FILE_NAME = "bookmark.enc";
@@ -523,8 +525,54 @@ function setActionTriggers() {
         });
     });
 
+    $("#historyFindBtn").click(function () {
+        browser.storage.local.get("github", function (item) {
+            let github = item.github;
+            var key = github.security.key;
+            var token = github.token;
+            var repoName = github.repo;
+            var username = github.user;
+            var startDate = $('#historyDateStart').val();
+            var endDate = $('#historyDateEnd').val();
+            var $historySelect = $('#historySelect');
+
+            if (!startDate || !endDate) {
+                alertify.notify('Specify the start and the end date!', 'error', 5);
+                return;
+            }
+
+            if (token && key && repoName) {
+                $historySelect.empty();
+
+                $.ajax({
+                    type: 'GET',
+                    url: `${BASE_API_URL}/repos/${username}/${repoName}/commits`,
+                    headers: {
+                        'Authorization': `token ${token}`
+                    },
+                    data: JSON.stringify({
+                        since: `${startDate}T00:00:00Z`,
+                        until: `${endDate}T23:59:59Z`
+                    }),
+                    dataType: 'json',
+                    success: function (data) {
+                        for (var currentCommit of data) {
+
+                            $historySelect.append($('<option>', {
+                                value: currentCommit.sha,
+                                text: currentCommit.commit.committer.date
+                            }));
+                        }
+                    }, error: apiError
+                });
+            } else {
+                alert("The github token, key or the repo is undefined!");
+            }
+        });
+    });
+
     $("#btnCallGithubOverrideLocal").click(function () {
-        alertify.confirm('Confirmation', 'Do you really want to delete your local bookmarks with those of the server?', function () {
+        alertify.confirm('Confirmation', 'Do you really want to replace your local bookmarks with those of the server?', function () {
             executeBookmarkAction(OVERRIDE_LOCAL_WITH_SERVER);
         }, function () {
         });
@@ -562,6 +610,10 @@ function hideInitAndShowMainView() {
 }
 
 function setComponentsDefaultValues() {
+    $('.history-date').pickadate({
+        format: 'yyyy-mm-dd'
+    });
+
     browser.storage.local.get("github", function (item) {
         var github = item.github;
         var encodedKey;

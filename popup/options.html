@@ -18,22 +18,43 @@
 <head>
     <meta charset="utf-8">
     <link rel="stylesheet" href="css/options.css"/>
+    <link rel="stylesheet" href="css/pickadate/default.css"/>
+    <link rel="stylesheet" href="css/pickadate/default.date.css"/>
     <link rel="stylesheet" href="css/alertify.min.css"/>
 </head>
 
 <body>
-<div id="popup-content" style="display: none">
-    <div id="divMain">
-        <label for="inputGithubToken">Github token:</label><br/>
-        <input type="password" id="inputGithubToken"><br/>
-        <label for="inputAesSecurity">Key:</label><br/>
-        <input id="inputAesSecurity">
-        <label for="inputRepoName">Repo name:</label><br/>
-        <input id="inputRepoName"><br/>
-        <br/>
-        <input id="btnGithubSave" type="button" value="Save">
-    </div>
+<div id="popup-content">
+    <div id="popup-view">
 
+        <div class="popup-view-container">
+            <span class="popup-container-title">User Information</span>
+            <div id="user-information">
+                <label for="inputGithubToken">Github token:</label><br/>
+                <input type="password" id="inputGithubToken"><br/>
+                <label for="inputAesSecurity">Key:</label><br/>
+                <input id="inputAesSecurity">
+                <label for="inputRepoName">Repo name:</label><br/>
+                <input id="inputRepoName"><br/>
+                <br/>
+                <input id="btnGithubSave" type="button" value="Save">
+            </div>
+        </div>
+
+        <div class="popup-view-container">
+            <span class="popup-container-title">Restore bookmark from history</span>
+            <div id="history-selection">
+                <input id="historyDateStart" class="history-date">
+                <span> to </span>
+                <input id="historyDateEnd" class="history-date" data-value="today"/>
+                <button id="historyFindBtn" class="button">Find</button>
+            </div>
+            <div id="history-choice">
+                <select id="historySelect"></select>
+                <button class="button">Restore</button>
+            </div>
+        </div>
+    </div>
     <div id="divSyncContainer">
         <img id="imgLoading" src="img/spinner.gif" style="display: none">
         <input id="btnCallGithubOverrideLocal" class="overrideButton" type="button"
@@ -48,14 +69,15 @@
     <div style="color: red; font-size: larger">
         Welcome and thanks for using this add-on!
         <br><br>
-        If you already have your decryption key, you can directly click on the button next, if not, continue the reading.
+        If you already have your decryption key, you can directly click on the button next, if not, continue the
+        reading.
         <br><br>
         If you lose this generated key, you WILL NOT be able to decrypt the
         previous encrypted bookmarks. Also, never share this key (If someone has it, they can decrypt your bookmarks)
     </div>
     <label for="txtAreaKeyInit">Generated key</label>
     <textarea readonly id="txtAreaKeyInit"></textarea>
-    <input id="btnInit" class="overrideButton" type="button" value="Next">
+    <input id="btnInit" class="button" type="button" value="Next">
 </div>
 
 <script src="scripts/jquery-3.3.1.min.js"></script>
@@ -69,6 +91,8 @@
 <script src="scripts/aes.min.js"></script>
 <script src="scripts/lz-string.min.js"></script>
 <script src="scripts/alertify.min.js"></script>
+<script src="scripts/pickadate/picker.js"></script>
+<script src="scripts/pickadate/picker.date.js"></script>
 <script src="scripts/options.js"></script>
 </body>
 

@@ -19,16 +19,6 @@ html, body {
     height: 375px;
 }
 
-#popup-content {
-    display: flex;
-    height: 100%;
-    width: 100%;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: center;
-    padding: 15px;
-}
-
 #divSyncContainer {
     display: flex;
     flex-direction: column;
@@ -37,9 +27,10 @@ html, body {
     position: fixed;
     bottom: 0;
     width: 100%;
+    height: 60px;
 }
 
-input{
+input {
     width: 100%;
 }
 
@@ -54,7 +45,7 @@ input{
     background: #68b3d9;
 }
 
-#divMain {
+#user-information {
     width: 100%;
 }
 
@@ -79,4 +70,38 @@ input{
 #initName {
     width: 100%;
     text-align: center;
+}
+
+#history-selection {
+    display: block;
+    float: left;
+    width: 100%;
+}
+
+.history-date {
+    width: 75px;
+}
+
+#popup-view {
+    padding: 5px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    height: 315px;
+    width: 100%;
+}
+
+#popup-content {
+    height: 100%;
+    width: 100%;
+}
+
+.popup-view-container {
+    border: #dbd9e0 2px inset;
+    padding: 10px;
+}
+
+.popup-container-title {
+    font-weight: bolder;
+    font-size: larger;
 }
