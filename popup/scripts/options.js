@@ -13,8 +13,6 @@
  *    See the License for the specific language governing permissions and
  *    limitations under the License.
  */
-//TODO: Add an history to be able to revert (https://developer.github.com/v3/repos/commits/#list-commits-on-a-repository)
-//TODO: Switch to extension pages instead of popup ? (https://developer.mozilla.org/en-US/Add-ons/WebExtensions/user_interface/Extension_pages)
 
 const BASE_API_URL = "https://api.github.com";
 const BOOKMARK_FILE_NAME = "bookmark.enc";
@@ -445,24 +443,6 @@ function executeBookmarkAction(action) {
         var config = {iv: github.security.iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7};
 
         if (token && key && repoName) {
-            if (!username) {
-                getUsername(token, function getUsernameSuccessCallback(userData) {
-                    //Save the username
-                    username = userData.login;
-                    github.user = username;
-                    browser.storage.local.set({
-                        github: github
-                    });
-
-                    console.log("found username -> " + username);
-                }, apiError);
-            }
-
-            if (!username) {
-                showSyncSpinner(false);
-                throw "The username is NOT present, quitting!";
-            }
-
             checkIfRepoExist(token, username, repoName, function (isRepoPresentData) {
                 if (!isRepoPresentData) { //Create the repo
                     console.log("The repo is NOT present!");
@@ -514,18 +494,27 @@ function setActionTriggers() {
 
     $("#btnGithubSave").click(function () {
         browser.storage.local.get("github", function (item) {
-            let github = item.github;
+            var token = $('#inputGithubToken').val();
 
-            if (!github) {
-                github = {};
-            }
+            getUsername(token, function getUsernameSuccessCallback(userData) {
+                let github = item.github;
 
-            github.token = $('#inputGithubToken').val();
-            github.repo = $('#inputRepoName').val();
-            github.security = JSON.parse(atob($('#inputAesSecurity').val()));
-            browser.storage.local.set({
-                github: github
-            });
+                if (!github) {
+                    github = {};
+                }
+                var username = userData.login;
+
+                github.token = token;
+                github.repo = $('#inputRepoName').val();
+                github.security = JSON.parse(atob($('#inputAesSecurity').val()));
+                github.user = username;
+
+                browser.storage.local.set({
+                    github: github
+                });
+
+                console.log("found username -> " + username);
+            }, apiError);
         });
     });
 
@@ -577,7 +566,6 @@ function setActionTriggers() {
     });
 
     $("#historyRestoreBtn").click(function () {
-
         browser.storage.local.get("github", function (item) {
             let github = item.github;
             var key = github.security.key;
@@ -683,16 +671,20 @@ function setComponentsDefaultValues() {
     });
 }
 
-function showMainView() {
-    setComponentsDefaultValues();
-    setActionTriggers();
+function createTheWindow() {
+    browser.windows.create({
+        titlePreface: "dfsasdsdasd",
+        type: "detached_panel",
+        url: "popup/options.html",
+        width: 350,
+        height: 440
+    });
 }
 
 function apiError(xhr, ajaxOptions, thrownError) {
     console.log(`There was an error while fetching the API -> (thrownError -> ${thrownError}, ajaxOptions -> ${JSON.stringify(ajaxOptions)}, xhr -> ${JSON.stringify(xhr)}`)
     showSyncSpinner(false);
 }
-
 
 function disableUiAction(value) {
     let $btnCallGithubOverrideLocal = $("#btnCallGithubOverrideLocal");
@@ -702,7 +694,6 @@ function disableUiAction(value) {
     $btnCallGithubOverrideServer.prop("disabled", value);
     $btnCallGithubOverrideLocal.prop("disabled", value);
     $btnGithubSave.prop("disabled", value);
-
 
     if (value) {
         $btnCallGithubOverrideLocal.addClass("disabled");
@@ -715,15 +706,14 @@ function disableUiAction(value) {
     }
 }
 
-function reportExecuteScriptError(error) {
-    console.error(`Failed to execute content script: ${error.message}`);
-    disableUiAction(true);
-}
+// function bookmarkEvent() {
+//
+// }
+//
+// browser.bookmarks.onCreated.addListener(bookmarkEvent);
+// browser.bookmarks.onRemoved.addListener(bookmarkEvent);
 
-function bookmarkEvent() {
+browser.browserAction.onClicked.addListener(createTheWindow);
 
-}
-
-browser.tabs.executeScript({code: ""}).then(showMainView).catch(reportExecuteScriptError);
-browser.bookmarks.onCreated.addListener(bookmarkEvent);
-browser.bookmarks.onRemoved.addListener(bookmarkEvent);
+setComponentsDefaultValues();
+setActionTriggers();
