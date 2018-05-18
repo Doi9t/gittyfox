@@ -14,6 +14,8 @@
  *    limitations under the License.
  */
 
+//TODO: Save bookmarks on events
+
 const BASE_API_URL = "https://api.github.com";
 const BOOKMARK_FILE_NAME = "bookmark.enc";
 const OVERRIDE_LOCAL_WITH_SERVER = "OVERRIDE_LOCAL_WITH_SERVER";

@@ -9,4 +9,6 @@
 .idea/*
 *.iml
 
+.web-extension-id
+
 # End of https://www.gitignore.io/api/webstorm
