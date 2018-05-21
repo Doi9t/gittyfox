@@ -14,8 +14,6 @@
  *    limitations under the License.
  */
 
-//TODO: Save bookmarks on events
-
 const BASE_API_URL = "https://api.github.com";
 const BOOKMARK_FILE_NAME = "bookmark.enc";
 const OVERRIDE_LOCAL_WITH_SERVER = "OVERRIDE_LOCAL_WITH_SERVER";
@@ -304,9 +302,7 @@ function showSyncSpinner(show) {
 function deleteAllLocalBookmarks() {
     for (var currentTreeName of [BOOKMARK_ROOT_MENU, BOOKMARK_ROOT_TOOLBAR, BOOKMARK_ROOT_UNFILED, BOOKMARK_ROOT_MOBILE]) {
         browser.bookmarks.getSubTree(currentTreeName).then(function (treeArr) {
-
             var tree = treeArr[0];
-
             for (var children of tree.children) {
                 var id = children.id;
 
@@ -320,21 +316,24 @@ function deleteAllLocalBookmarks() {
     }
 }
 
-function createNewBookmark(currentElement, parentId) {
-    browser.bookmarks.create({
+async function createNewBookmark(currentElement, parentId) {
+    var bookmark = await browser.bookmarks.create({
         index: currentElement.index,
         parentId: (parentId !== null ? parentId : currentElement.parentId),
         title: currentElement.title,
         url: currentElement.url
-    }).then(function (bookmark) {
-        for (var bookmarksItem of sortBookmark(currentElement.children)) {
-            createNewBookmark(bookmarksItem, bookmark.id);
-        }
     });
+
+    var children = currentElement.children;
+
+    if (children) {
+        for (var bookmarksItem of children) {
+            await createNewBookmark(bookmarksItem, bookmark.id);
+        }
+    }
 }
 
 function fetchBlobFromCommit(token, username, repoName, headCommitSha, key, config, callback) {
-
     getTree(token, username, repoName, headCommitSha, function (treeData) {
         //Find the blob of the bookmark
         for (var blob of treeData.tree) {
@@ -365,27 +364,19 @@ function fetchBlobFromCommit(token, username, repoName, headCommitSha, key, conf
 }
 
 function overrideLocalByRemote(token, username, repoName, headCommitSha, key, config) {
-    deleteAllLocalBookmarks();
-    fetchBlobFromCommit(token, username, repoName, headCommitSha, key, config, function (bookmarks) {
-        for (var bookmarksRoot of sortBookmark(bookmarks)) {
-            for (var rootChild of sortBookmark(bookmarksRoot.children)) {
-                createNewBookmark(rootChild, bookmarksRoot.id);
+    fetchBlobFromCommit(token, username, repoName, headCommitSha, key, config, async function (bookmarks) {
+        disableUiAction(true);
+        disableBookmarkListeners();
+        deleteAllLocalBookmarks();
+        for (var bookmarksRoot of bookmarks) {
+            for (var rootChild of bookmarksRoot.children) {
+                await createNewBookmark(rootChild, bookmarksRoot.id);
             }
         }
+        enableBookmarkListeners();
+        disableUiAction(false);
         alertify.notify('The bookmarks have been replaced with those of the server successfully!', 'success', 5);
     });
-}
-
-function sortBookmark(bookmark) {
-    bookmark.sort(function (a, b) {
-        return a.index < b.index;
-    });
-
-    return bookmark;
-}
-
-function bookmarkError(error) {
-    console.log(`There's an error while searching the bookmark: ${error}`);
 }
 
 function getLocalBookmarkRootsFromTree(bookmarkTreeNodes) {
@@ -492,8 +483,6 @@ function executeBookmarkAction(action) {
 }
 
 function setActionTriggers() {
-    disableUiAction(false);
-
     $("#btnGithubSave").click(function () {
         browser.storage.local.get("github", function (item) {
             var token = $('#inputGithubToken').val();
@@ -535,7 +524,6 @@ function setActionTriggers() {
                 alertify.notify('Specify the start and the end date!', 'error', 5);
                 return;
             }
-
 
             if (token && key && repoName) {
                 $historySelect.empty();
@@ -673,16 +661,6 @@ function setComponentsDefaultValues() {
     });
 }
 
-function createTheWindow() {
-    browser.windows.create({
-        titlePreface: "dfsasdsdasd",
-        type: "detached_panel",
-        url: "popup/options.html",
-        width: 350,
-        height: 440
-    });
-}
-
 function apiError(xhr, ajaxOptions, thrownError) {
     console.log(`There was an error while fetching the API -> (thrownError -> ${thrownError}, ajaxOptions -> ${JSON.stringify(ajaxOptions)}, xhr -> ${JSON.stringify(xhr)}`)
     showSyncSpinner(false);
@@ -692,30 +670,60 @@ function disableUiAction(value) {
     let $btnCallGithubOverrideLocal = $("#btnCallGithubOverrideLocal");
     let $btnCallGithubOverrideServer = $("#btnCallGithubOverrideServer");
     let $btnGithubSave = $("#btnGithubSave");
+    let $historyRestoreBtn = $("#historyRestoreBtn");
+    let $historyFindBtn = $("#historyFindBtn");
 
     $btnCallGithubOverrideServer.prop("disabled", value);
     $btnCallGithubOverrideLocal.prop("disabled", value);
     $btnGithubSave.prop("disabled", value);
+    $historyRestoreBtn.prop("disabled", value);
+    $historyFindBtn.prop("disabled", value);
 
     if (value) {
         $btnCallGithubOverrideLocal.addClass("disabled");
         $btnCallGithubOverrideServer.addClass("disabled");
         $btnGithubSave.addClass("disabled");
+        $historyRestoreBtn.addClass("disabled");
+        $historyFindBtn.addClass("disabled");
     } else {
         $btnCallGithubOverrideLocal.removeClass("disabled");
         $btnCallGithubOverrideServer.removeClass("disabled");
         $btnGithubSave.removeClass("disabled");
+        $historyRestoreBtn.removeClass("disabled");
+        $historyFindBtn.removeClass("disabled");
     }
 }
 
-// function bookmarkEvent() {
-//
-// }
-//
-// browser.bookmarks.onCreated.addListener(bookmarkEvent);
-// browser.bookmarks.onRemoved.addListener(bookmarkEvent);
+function disableBookmarkListeners() {
+    browser.runtime.sendMessage({
+        evtType: "bookmark",
+        action: {
+            id: "bookmark_evt_disable",
+            value: true
+        }
+    });
+}
 
-browser.browserAction.onClicked.addListener(createTheWindow);
+function enableBookmarkListeners() {
+    browser.runtime.sendMessage({
+        evtType: "bookmark",
+        action: {
+            id: "bookmark_evt_disable",
+            value: false
+        }
+    });
+}
+
+browser.runtime.onMessage.addListener(function (message, sender) {
+    if (sender.id === "gittyfox@watier.ca") {
+        if (message.evtType === "bookmark") {
+            var obj = message.action;
+            if (obj.id === "bookmark_evt_changed") {
+                executeBookmarkAction(OVERRIDE_SERVER_WITH_LOCAL);
+            }
+        }
+    }
+});
 
 setComponentsDefaultValues();
 setActionTriggers();

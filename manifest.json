@@ -34,19 +34,7 @@
   },
   "background": {
     "scripts": [
-      "popup/scripts/jquery-3.3.1.min.js",
-      "popup/scripts/core.min.js",
-      "popup/scripts/md5.min.js",
-      "popup/scripts/evpkdf.min.js",
-      "popup/scripts/enc-base64.min.js",
-      "popup/scripts/cipher-core.min.js",
-      "popup/scripts/sha256.min.js",
-      "popup/scripts/aes.min.js",
-      "popup/scripts/lz-string.min.js",
-      "popup/scripts/alertify.min.js",
-      "popup/scripts/pickadate/picker.js",
-      "popup/scripts/pickadate/picker.date.js",
-      "popup/scripts/options.js"
+      "popup/scripts/starter.js"
     ]
   }
 }
