@@ -2,7 +2,7 @@
   "description": "Save your bookmarks on Github",
   "manifest_version": 2,
   "name": "Gittyfox",
-  "version": "1.0",
+  "version": "1.1",
   "homepage_url": "https://watier.ca",
   "icons": {
     "48": "icons/main.png"
