@@ -19,7 +19,7 @@ function createTheWindow() {
     browser.windows.create({
         type: "detached_panel",
         url: "popup/options.html",
-        width: 350,
+        width: 550,
         height: 440
     });
 }

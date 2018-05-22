@@ -26,7 +26,6 @@
 <body>
 <div id="popup-content" style="display: none">
     <div id="popup-view">
-
         <div class="popup-view-container">
             <span class="popup-container-title">User Information</span>
             <div id="user-information">
@@ -75,7 +74,8 @@
         If you lose this generated key, you WILL NOT be able to decrypt the
         previous encrypted bookmarks. Also, never share this key (If someone has it, they can decrypt your bookmarks)
     </div>
-    <label for="txtAreaKeyInit">Generated key</label>
+    <br><br>
+    <label id="txtAreaKeyInitLabel" for="txtAreaKeyInit">Generated key:</label>
     <textarea readonly id="txtAreaKeyInit"></textarea>
     <input id="btnInit" class="button" type="button" value="Next">
 </div>

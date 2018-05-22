@@ -104,23 +104,30 @@ function getTree(token, username, repo_name, commit_sha, successCallback, errorC
 /**
  * Get the current user based on the token (synchronous method)
  * @param token
- * @param successCallback
- * @param errorCallback
+ * @return Promise<any> promise
  */
-function getUsername(token, successCallback, errorCallback) {
-    $.ajax({
-        type: 'GET',
-        url: `${BASE_API_URL}/user`,
-        headers: {
-            'Authorization': `token ${token}`
-        },
-        dataType: 'json',
-        async: false,
-        success: function (data) {
-            successCallback(data);
-        }, error: function (xhr, ajaxOptions, thrownError) {
-            errorCallback(xhr, ajaxOptions, thrownError);
-        }
+function getUsername(token) {
+    return new Promise(function (resolve, reject) {
+        $.ajax({
+            type: 'GET',
+            url: `${BASE_API_URL}/user`,
+            headers: {
+                'Authorization': `token ${token}`
+            },
+            dataType: 'json',
+            async: false
+        }).done(function (data) {
+            resolve(data);
+        }).fail(function (xhr, ajaxOptions, thrownError) {
+            var error = "undefined";
+            var json = JSON.parse(xhr.responseText);
+
+            if (xhr.status === 401 && json.message === "Bad credentials") {
+                error = "bad_creds";
+            }
+
+            reject(error);
+        });
     });
 }
 
@@ -477,7 +484,7 @@ function executeBookmarkAction(action) {
                 showSyncSpinner(false);
             }, apiError);
         } else {
-            alert("The github token, key or the repo is undefined!");
+            alertify.notify('The github token, key or the repo is undefined!', 'warning', 5);
         }
     });
 }
@@ -487,7 +494,7 @@ function setActionTriggers() {
         browser.storage.local.get("github", function (item) {
             var token = $('#inputGithubToken').val();
 
-            getUsername(token, function getUsernameSuccessCallback(userData) {
+            getUsername(token).then(function (userData) {
                 let github = item.github;
 
                 if (!github) {
@@ -502,10 +509,25 @@ function setActionTriggers() {
 
                 browser.storage.local.set({
                     github: github
+                }).then(function () {
+                    alertify.notify('Saved successfully!', 'success', 5);
                 });
 
                 console.log("found username -> " + username);
-            }, apiError);
+            }).catch(function (type) {
+                var reason;
+
+                switch (type) {
+                    case "bad_creds":
+                        reason = "The github token is not valid or expired!";
+                        break;
+                    default:
+                        reason = "undefined";
+                        break;
+                }
+
+                alertify.error(reason, 5);
+            });
         });
     });
 
@@ -550,7 +572,7 @@ function setActionTriggers() {
                     }, error: apiError
                 });
             } else {
-                alert("The github token, key or the repo is undefined!");
+                alertify.notify('The github token, key or the repo is undefined!', 'warning', 5);
             }
         });
     });
