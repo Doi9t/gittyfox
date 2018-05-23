@@ -400,8 +400,9 @@ function getLocalBookmarkRootsFromTree(bookmarkTreeNodes) {
 function overrideServerWithLocal(token, username, repoName, headCommitSha, key, config) {
     browser.bookmarks.getTree(function (bookmarkTreeNodes) {
         let bookmarksRootAsList = getLocalBookmarkRootsFromTree(bookmarkTreeNodes);
-
         var bookmarkAsBlob = null;
+
+        disableUiAction(true);
 
         uploadBlob(token, username, repoName, key, config, JSON.stringify(bookmarksRootAsList), function (blobData) {
             console.log(`The blob is uploaded (sha -> ${blobData.sha}) !`);
@@ -426,6 +427,7 @@ function overrideServerWithLocal(token, username, repoName, headCommitSha, key, 
                 updateReference(token, username, repoName, headCommitSha, commitSha, function (referenceData) {
                     console.log(`The reference sha "${referenceData["object"].sha}"`);
                     alertify.notify('The bookmarks on the server are successfully changed!', 'success', 5);
+                    disableUiAction(false);
                 }, apiError);
             }, apiError);
         }, apiError);
@@ -550,6 +552,8 @@ function setActionTriggers() {
             if (token && key && repoName) {
                 $historySelect.empty();
 
+                $("#history-section").removeClass("hidden-item");
+
                 $.ajax({
                     type: 'GET',
                     url: `${BASE_API_URL}/repos/${username}/${repoName}/commits`,
@@ -564,9 +568,14 @@ function setActionTriggers() {
                     dataType: 'json',
                     success: function (data) {
                         for (var currentCommit of data) {
+
+                            var sections = currentCommit.commit.committer.date.split('T');
+                            var date = sections[0];
+                            var hour = sections[1].slice(0, -1);
+
                             $historySelect.append($('<option>', {
                                 value: currentCommit.sha,
-                                text: currentCommit.commit.committer.date
+                                text: `${date} (${hour})`
                             }));
                         }
                     }, error: apiError
@@ -637,7 +646,7 @@ function hideInitAndShowMainView() {
 }
 
 function setComponentsDefaultValues() {
-    $('.history-date').pickadate({
+    $('.date-picker').pickadate({
         format: 'yyyy-mm-dd'
     });
 
@@ -748,4 +757,11 @@ browser.runtime.onMessage.addListener(function (message, sender) {
 });
 
 setComponentsDefaultValues();
+
+function initSemanticUiComponents() {
+    $('.popup').popup();
+    $('.ui.dropdown').dropdown();
+}
+
+initSemanticUiComponents();
 setActionTriggers();

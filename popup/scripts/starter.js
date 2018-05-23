@@ -20,7 +20,7 @@ function createTheWindow() {
         type: "detached_panel",
         url: "popup/options.html",
         width: 550,
-        height: 440
+        height: 500
     });
 }
 

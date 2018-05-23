@@ -21,6 +21,7 @@
     <link rel="stylesheet" href="css/pickadate/default.css"/>
     <link rel="stylesheet" href="css/pickadate/default.date.css"/>
     <link rel="stylesheet" href="css/alertify.min.css"/>
+    <link rel="stylesheet" href="css/semantic-ui/semantic.min.css"/>
 </head>
 
 <body>
@@ -29,37 +30,68 @@
         <div class="popup-view-container">
             <span class="popup-container-title">User Information</span>
             <div id="user-information">
-                <label for="inputGithubToken">Github token:</label><br/>
-                <input type="password" id="inputGithubToken"><br/>
-                <label for="inputAesSecurity">Key:</label><br/>
-                <input id="inputAesSecurity">
-                <label for="inputRepoName">Repo name:</label><br/>
-                <input id="inputRepoName"><br/>
+                <div class="fluid ui left icon input">
+                    <input id="inputAesSecurity" class="popup" placeholder="Key..." type="text" data-position="top center"
+                           data-content="Type your generated key">
+                    <i class="key icon"></i>
+                </div>
+
+                <div class="fluid ui left icon input">
+                    <input id="inputGithubToken" class="popup" placeholder="Github token..." type="text" data-position="top center"
+                           data-content="Type your github token">
+                    <i class="github icon"></i>
+                </div>
+
+                <div class="fluid ui left icon input">
+                    <input id="inputRepoName" class="popup" placeholder="Repo Name..." type="text" data-position="top center"
+                           data-content="Enter the repository name in which the bookmark will be saved. (If not present, a new one will be created for you)">
+                    <i class="github icon"></i>
+                </div>
+
                 <br/>
-                <input id="btnGithubSave" type="button" value="Save">
+                <button id="btnGithubSave" class="fluid mini ui teal button">Save the user information</button>
             </div>
         </div>
 
         <div class="popup-view-container">
             <span class="popup-container-title">Restore bookmark from history</span>
             <div id="history-selection">
-                <input id="historyDateStart" class="history-date">
+                <div class="ui small left icon history-date input">
+                    <input id="historyDateStart" class="date-picker" placeholder="Choose the date..." type="text">
+                    <i class="calendar alternate outline icon"></i>
+                </div>
+
                 <span> to </span>
-                <input id="historyDateEnd" class="history-date" data-value="today"/>
-                <button id="historyFindBtn" class="button">Find</button>
+
+                <div class="ui small left icon history-date input">
+                    <input id="historyDateEnd" class="date-picker" placeholder="Choose the date..." type="text" data-value="today">
+                    <i class="calendar alternate outline icon"></i>
+                </div>
+
+                <button id="historyFindBtn" class="small ui teal basic button">
+                    <i class="search icon"></i>
+                    Search
+                </button>
             </div>
-            <div id="history-choice">
-                <select id="historySelect"></select>
-                <button id="historyRestoreBtn" class="button">Restore</button>
+            <hr>
+
+            <div id="history-section" class="hidden-item">
+                <span class="popup-container-sub-title">Choose the date to restore from</span>
+                <div id="history-choice">
+                    <select id="historySelect" class="ui search dropdown"></select>
+                    <button id="historyRestoreBtn" class="small ui teal button">Restore</button>
+                </div>
             </div>
         </div>
     </div>
     <div id="divSyncContainer">
         <img id="imgLoading" src="img/spinner.gif" style="display: none">
-        <input id="btnCallGithubOverrideLocal" class="overrideButton" type="button"
-               value="Override local bookmarks with server bookmarks">
-        <input id="btnCallGithubOverrideServer" class="overrideButton" type="button"
-               value="Save current bookmarks to server">
+
+        <div class="fluid ui buttons">
+            <button id="btnCallGithubOverrideLocal" class="ui teal button">Erase local and fetch from sever</button>
+            <div class="or"></div>
+            <button id="btnCallGithubOverrideServer" class="ui teal button">Save To Server</button>
+        </div>
     </div>
 </div>
 
@@ -92,6 +124,7 @@
 <script src="scripts/alertify.min.js"></script>
 <script src="scripts/pickadate/picker.js"></script>
 <script src="scripts/pickadate/picker.date.js"></script>
+<script src="scripts/semantic.min.js"></script>
 <script src="scripts/options.js"></script>
 </body>
 
