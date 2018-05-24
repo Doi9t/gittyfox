@@ -10,5 +10,6 @@
 *.iml
 
 .web-extension-id
+/web-ext-artifacts/
 
 # End of https://www.gitignore.io/api/webstorm
