@@ -15,13 +15,9 @@
  */
 
 #divSyncContainer {
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: center;
+    width: 100% !important; /*override the one of sementic*/
     position: fixed;
-    bottom: 10px;
-    width: 100%;
+    bottom: 0;
 }
 
 input {
@@ -35,11 +31,6 @@ input {
 
 #user-information {
     width: 100%;
-}
-
-#imgLoading {
-    width: 60px;
-    height: 60px;
 }
 
 #txtAreaKeyInit {
@@ -70,15 +61,14 @@ input {
 }
 
 #popup-view {
+    height: 100%;
     padding: 5px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-around;
 }
 
 #popup-content {
     overflow-x: hidden;
     height: 100%;
+    width: 100%;
 }
 
 .popup-view-container {

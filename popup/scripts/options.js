@@ -301,11 +301,6 @@ function updateReference(token, username, repoName, headCommitSha, commitSha, su
     });
 }
 
-function showSyncSpinner(show) {
-    $("#imgLoading").toggle(show);
-}
-
-
 function deleteAllLocalBookmarks() {
     for (var currentTreeName of [BOOKMARK_ROOT_MENU, BOOKMARK_ROOT_TOOLBAR, BOOKMARK_ROOT_UNFILED, BOOKMARK_ROOT_MOBILE]) {
         browser.bookmarks.getSubTree(currentTreeName).then(function (treeArr) {
@@ -461,11 +456,8 @@ function executeBookmarkAction(action) {
             });
 
             if (!isRepoPresent) {
-                showSyncSpinner(false);
                 throw "The repo is NOT present, quitting!";
             }
-
-            showSyncSpinner(true);
 
             //Get the tree ref
             getRef(token, username, repoName, function getRefSuccessCallback(refData) {
@@ -482,8 +474,7 @@ function executeBookmarkAction(action) {
                     default:
                         throw "unknown action!";
                 }
-
-                showSyncSpinner(false);
+                ;
             }, apiError);
         } else {
             alertify.notify('The github token, key or the repo is undefined!', 'warning', 5);
@@ -694,7 +685,6 @@ function setComponentsDefaultValues() {
 
 function apiError(xhr, ajaxOptions, thrownError) {
     console.log(`There was an error while fetching the API -> (thrownError -> ${thrownError}, ajaxOptions -> ${JSON.stringify(ajaxOptions)}, xhr -> ${JSON.stringify(xhr)}`)
-    showSyncSpinner(false);
 }
 
 function disableUiAction(value) {
